@@ -77,7 +77,7 @@ public class WeaponController : MonoBehaviour
         if (gunFireEffect != null && gunPoint != null)
         {
             GameObject muzzle = Instantiate(gunFireEffect, gunPoint.position, Quaternion.identity);
-            Destroy(muzzle, 1f);
+            Destroy(muzzle, 0.5f);
         }
 
         if (audioSource != null && currentGun.fireSound != null)
@@ -90,7 +90,7 @@ public class WeaponController : MonoBehaviour
             if (hitEffect != null)
             {
                 GameObject impact = Instantiate(hitEffect, hit.point, Quaternion.identity);
-                Destroy(impact, 1f);
+                Destroy(impact, 0.5f);
             }
 
             if (hit.collider.CompareTag("Enemy"))

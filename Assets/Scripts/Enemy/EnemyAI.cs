@@ -11,7 +11,8 @@ public class EnemyAI : MonoBehaviour
 
     public LayerMask whatIsGround, whatIsPlayer;
     public float health;
-
+    [SerializeField] private int hitDamage = 1;
+    [SerializeField] GameObject enemyDrop;
 
     //Patroling
     public Vector3 walkPoint;
@@ -79,9 +80,7 @@ public class EnemyAI : MonoBehaviour
         if (!alreadyAttacked)
         {
             ///Attack code here
-            /// 
-            /// 
-            /// ///
+            player.GetComponent<PlayerHealth>().TakeDamage(hitDamage);
 
             alreadyAttacked = true;
             Invoke(nameof(ResetAttack), timeBetweenAttacks);
@@ -102,6 +101,12 @@ public class EnemyAI : MonoBehaviour
 
     private void DestroyEnemy()
     {
+        if (enemyDrop != null)
+        {
+            Instantiate(enemyDrop, transform.position, Quaternion.identity);
+        }
         Destroy(gameObject);
     }
+
+
 }
