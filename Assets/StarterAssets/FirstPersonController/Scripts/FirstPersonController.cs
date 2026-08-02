@@ -26,6 +26,7 @@ namespace StarterAssets
 		private float MoveSpeed = 0f;
 		private float SprintSpeed = 0f;
 		private bool crouched = false;
+		private bool isMoving = false;
 
 		[Space(10)]
 		[Tooltip("The height the player can jump")]
@@ -92,6 +93,17 @@ namespace StarterAssets
 			}
 		}
 
+		public AudioSource footStepDirt;
+		public AudioSource footStepMetal;
+
+		[Header("Footsteps")]
+		[Tooltip("Tag used on ground objects made of dirt")]
+		public string dirtGroundTag = "Dirt";
+		[Tooltip("Tag used on ground objects made of metal")]
+		public string metalGroundTag = "Metal";
+		[Tooltip("How far down to check for the ground surface type")]
+		public float footstepRayDistance = 1.0f;
+
 		private void Awake()
 		{
 			// get a reference to our main camera
@@ -108,7 +120,7 @@ namespace StarterAssets
 #if ENABLE_INPUT_SYSTEM
 			_playerInput = GetComponent<PlayerInput>();
 #else
-			Debug.LogError( "Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
+			Debug.LogError("Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
 #endif
 
 			// reset our timeouts on start
@@ -205,9 +217,63 @@ namespace StarterAssets
 				inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
 			}
 
+			//sound activation
+			PlayFootstepSound();
+
 			// move the player
 			_controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 		}
+		[Tooltip("Log footstep detection info to the Console for debugging")]
+		public bool debugFootsteps = true;
+
+		private void PlayFootstepSound()
+		{
+			bool isMovingNow = _input.move != Vector2.zero;
+
+			// only play footsteps while grounded and actually moving
+			if (!Grounded || !isMovingNow)
+			{
+				footStepDirt.Stop();
+				footStepMetal.Stop();
+				return;
+			}
+
+			Vector3 rayOrigin = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
+
+			if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, footstepRayDistance, GroundLayers, QueryTriggerInteraction.Ignore))
+			{
+				if (debugFootsteps) Debug.Log($"[Footsteps] Hit '{hit.collider.name}' with tag '{hit.collider.tag}'");
+
+				if (hit.collider.CompareTag(dirtGroundTag))
+				{
+					footStepMetal.Stop();
+					if (!footStepDirt.isPlaying) footStepDirt.Play();
+					return;
+				}
+
+				if (hit.collider.CompareTag(metalGroundTag))
+				{
+					footStepDirt.Stop();
+					if (!footStepMetal.isPlaying) footStepMetal.Play();
+					return;
+				}
+
+				// hit something, but its tag didn't match either footstep tag
+				if (debugFootsteps) Debug.LogWarning($"[Footsteps] '{hit.collider.name}' tag '{hit.collider.tag}' doesn't match dirtGroundTag('{dirtGroundTag}') or metalGroundTag('{metalGroundTag}'). Defaulting to metal.");
+
+				// fallback so you still get sound instead of silence while you sort out tags
+				footStepDirt.Stop();
+				if (!footStepMetal.isPlaying) footStepMetal.Play();
+				return;
+			}
+
+			if (debugFootsteps) Debug.LogWarning($"[Footsteps] Raycast from {rayOrigin} found nothing within {footstepRayDistance}m on GroundLayers. Check GroundLayers mask and footstepRayDistance.");
+
+			// unrecognised or no surface found - stay silent
+			footStepDirt.Stop();
+			footStepMetal.Stop();
+		}
+
 		private void Crouch()
 		{
 			if (Input.GetKey(KeyCode.C))
@@ -215,19 +281,20 @@ namespace StarterAssets
 				_controller.height = crouchHeight;
 				MoveSpeed = crouchSpeed;
 				SprintSpeed = crouchSpeed;
-
+				crouched = true;
 			}
 			else
 			{
 				_controller.height = defaultHeight;
 				MoveSpeed = MoveSpeedDefault;
 				SprintSpeed = SprintSpeedDefault;
+				crouched = false;
 			}
 		}
 
 		private void JumpAndGravity()
 		{
-			if (Grounded)
+			if (Grounded && !crouched)
 			{
 				// reset the fall timeout timer
 				_fallTimeoutDelta = FallTimeout;
@@ -241,15 +308,8 @@ namespace StarterAssets
 				// Jump
 				if (_input.jump && _jumpTimeoutDelta <= 0.0f)
 				{
-					if (!crouched)
-					{
-						// the square root of H * -2 * G = how much velocity needed to reach desired height
-						_verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-					}
-					else
-					{
-						_verticalVelocity = Mathf.Sqrt((JumpHeight / 2) * -2f * Gravity);
-					}
+					_verticalVelocity = Mathf.Sqrt((JumpHeight / 2) * -2f * Gravity);
+
 				}
 
 				// jump timeout

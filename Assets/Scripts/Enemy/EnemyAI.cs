@@ -27,6 +27,9 @@ public class EnemyAI : MonoBehaviour
     public float sightRange, attackRange;
     public bool playerInSightRange, playerInAttackRange;
 
+    //Audio
+    public AudioSource hitSound;
+
     private void Awake()
     {
         player = GameObject.Find("PlayerCapsule").transform;
@@ -95,8 +98,10 @@ public class EnemyAI : MonoBehaviour
     public void TakeDamage(int damage)
     {
         health -= damage;
+        if (hitSound != null) hitSound.Play();
 
         if (health <= 0) Invoke(nameof(DestroyEnemy), 0.5f);
+
     }
 
     private void DestroyEnemy()

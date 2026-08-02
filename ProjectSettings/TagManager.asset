@@ -8,6 +8,8 @@ TagManager:
   - Enemy
   - Ground
   - Key
+  - Metal
+  - Dirt
   layers:
   - Default
   - TransparentFX
