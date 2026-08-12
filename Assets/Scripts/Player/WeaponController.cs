@@ -2,15 +2,24 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 
+public enum WeaponType { Gun, Melee }
+
 public class WeaponController : MonoBehaviour
 {
-    [Header("Current Weapon")]
-    public GunData currentGun;
+    [Header("Equipped Weapons")]
+    public GunData gunData;
+    public MeleeWeaponData meleeData;
+    public WeaponType currentWeapon = WeaponType.Gun;
 
-    [Header("Raycast Setup")]
+    [Header("Switch Keys")]
+    public KeyCode gunKey = KeyCode.Alpha1;
+    public KeyCode meleeKey = KeyCode.Alpha2;
+
+    [Header("Attack Setup")]
     public Transform raycastOrigin;
     public Transform gunPoint;
-    public GameObject gunFireEffect;
+    public GameObject fireEffect;
+    public GameObject swingEffect;
     public GameObject hitEffect;
 
     [Header("Audio")]
@@ -20,44 +29,80 @@ public class WeaponController : MonoBehaviour
     [SerializeField] private TMP_Text ammoText;
 
     private int currentAmmo;
-    private bool canShoot = true;
+    private bool canAttack = true;
 
-    // Still available if any other script wants to read it directly
     public int CurrentAmmo => currentAmmo;
-    public int MaxAmmo => currentGun.maxAmmo;
+    public int MaxAmmo => gunData.maxAmmo;
 
     void Start()
     {
-        EquipGun(currentGun);
+        EquipWeapon(currentWeapon);
     }
 
     void Update()
     {
-        if (Input.GetMouseButton(0) && canShoot)
+        HandleSwitching();
+
+        bool firePressed = currentWeapon == WeaponType.Gun
+            ? Input.GetMouseButton(0)   // gun: hold to fire
+            : Input.GetMouseButtonDown(0); // melee: single swing per press
+
+        if (firePressed && canAttack)
         {
-            TryShoot();
+            TryAttack();
         }
 
-        if (Input.GetKeyDown(KeyCode.R))
+        if (currentWeapon == WeaponType.Gun && Input.GetKeyDown(KeyCode.R))
         {
             Reload();
         }
     }
 
-    // Call this to switch weapons, e.g. weaponController.EquipGun(shotgunData)
-    public void EquipGun(GunData newGun)
+    void HandleSwitching()
     {
-        currentGun = newGun;
-        currentAmmo = currentGun.maxAmmo;
-        canShoot = true;
-        StopAllCoroutines();
-        UpdateAmmoUI();
+        if (Input.GetKeyDown(gunKey) && currentWeapon != WeaponType.Gun)
+        {
+            EquipWeapon(WeaponType.Gun);
+        }
+        else if (Input.GetKeyDown(meleeKey) && currentWeapon != WeaponType.Melee)
+        {
+            EquipWeapon(WeaponType.Melee);
+        }
     }
 
-    void TryShoot()
+    public void EquipWeapon(WeaponType type)
     {
-        canShoot = false;
+        currentWeapon = type;
+        canAttack = true;
+        StopAllCoroutines();
 
+        if (type == WeaponType.Gun)
+        {
+            currentAmmo = gunData.maxAmmo;
+            UpdateAmmoUI();
+        }
+        else if (ammoText != null)
+        {
+            ammoText.text = ""; // no ammo display while melee is equipped
+        }
+    }
+
+    void TryAttack()
+    {
+        canAttack = false;
+
+        if (currentWeapon == WeaponType.Gun)
+        {
+            FireGun();
+        }
+        else
+        {
+            SwingMelee();
+        }
+    }
+
+    void FireGun()
+    {
         if (currentAmmo <= 0)
         {
             StartCoroutine(FireEmpty());
@@ -65,55 +110,91 @@ public class WeaponController : MonoBehaviour
         }
 
         currentAmmo--;
-        FireRaycast();
         UpdateAmmoUI();
-        StartCoroutine(FireCooldown());
-    }
 
-    void FireRaycast()
-    {
         Vector3 fwd = raycastOrigin.forward;
 
-        if (gunFireEffect != null && gunPoint != null)
+        if (fireEffect != null && gunPoint != null)
         {
-            GameObject muzzle = Instantiate(gunFireEffect, gunPoint.position, Quaternion.identity);
+            GameObject muzzle = Instantiate(fireEffect, gunPoint.position, Quaternion.identity);
             Destroy(muzzle, 0.5f);
         }
 
-        if (audioSource != null && currentGun.fireSound != null)
+        if (audioSource != null && gunData.fireSound != null)
         {
-            audioSource.PlayOneShot(currentGun.fireSound);
+            audioSource.PlayOneShot(gunData.fireSound);
         }
 
-        if (Physics.Raycast(raycastOrigin.position, fwd, out RaycastHit hit, currentGun.rayLength))
+        if (Physics.Raycast(raycastOrigin.position, fwd, out RaycastHit hit, gunData.rayLength))
         {
-            if (hitEffect != null)
+            SpawnHitEffect(hit.point);
+            DamageIfEnemy(hit.collider, gunData.damage);
+        }
+
+        StartCoroutine(AttackCooldown(gunData.cooldown));
+    }
+
+    void SwingMelee()
+    {
+        Vector3 fwd = raycastOrigin.forward;
+
+        if (swingEffect != null)
+        {
+            GameObject swing = Instantiate(swingEffect, raycastOrigin.position, Quaternion.identity);
+            Destroy(swing, 0.5f);
+        }
+
+        if (audioSource != null && meleeData.swingSound != null)
+        {
+            audioSource.PlayOneShot(meleeData.swingSound);
+        }
+
+        if (Physics.SphereCast(raycastOrigin.position, meleeData.swingRadius, fwd, out RaycastHit hit, meleeData.range))
+        {
+            SpawnHitEffect(hit.point);
+
+            if (audioSource != null && meleeData.hitSound != null)
             {
-                GameObject impact = Instantiate(hitEffect, hit.point, Quaternion.identity);
-                Destroy(impact, 0.5f);
+                audioSource.PlayOneShot(meleeData.hitSound);
             }
 
-            if (hit.collider.CompareTag("Enemy"))
+            DamageIfEnemy(hit.collider, meleeData.damage);
+        }
+
+        StartCoroutine(AttackCooldown(meleeData.cooldown));
+    }
+
+    void SpawnHitEffect(Vector3 point)
+    {
+        if (hitEffect != null)
+        {
+            GameObject impact = Instantiate(hitEffect, point, Quaternion.identity);
+            Destroy(impact, 0.5f);
+        }
+    }
+
+    void DamageIfEnemy(Collider col, int damage)
+    {
+        if (col.CompareTag("Enemy"))
+        {
+            EnemyAI enemy = col.GetComponent<EnemyAI>();
+            if (enemy != null)
             {
-                EnemyAI enemyHealth = hit.collider.GetComponent<EnemyAI>();
-                if (enemyHealth != null)
-                {
-                    enemyHealth.TakeDamage(currentGun.damage);
-                }
+                enemy.TakeDamage(damage);
             }
         }
     }
 
     void Reload()
     {
-        currentAmmo = currentGun.maxAmmo;
+        currentAmmo = gunData.maxAmmo;
         UpdateAmmoUI();
     }
 
     // Call this from pickups, e.g. weaponController.AddAmmo(10)
     public void AddAmmo(int amount)
     {
-        currentAmmo = Mathf.Min(currentAmmo + amount, currentGun.maxAmmo);
+        currentAmmo = Mathf.Min(currentAmmo + amount, gunData.maxAmmo);
         UpdateAmmoUI();
     }
 
@@ -121,23 +202,23 @@ public class WeaponController : MonoBehaviour
     {
         if (ammoText != null)
         {
-            ammoText.text = currentAmmo + " / " + currentGun.maxAmmo;
+            ammoText.text = currentAmmo + " / " + gunData.maxAmmo;
         }
     }
 
-    IEnumerator FireCooldown()
+    IEnumerator AttackCooldown(float duration)
     {
-        yield return new WaitForSeconds(currentGun.cooldown);
-        canShoot = true;
+        yield return new WaitForSeconds(duration);
+        canAttack = true;
     }
 
     IEnumerator FireEmpty()
     {
-        if (audioSource != null && currentGun.emptySound != null)
+        if (audioSource != null && gunData.emptySound != null)
         {
-            audioSource.PlayOneShot(currentGun.emptySound);
+            audioSource.PlayOneShot(gunData.emptySound);
         }
-        yield return new WaitForSeconds(currentGun.cooldown);
-        canShoot = true;
+        yield return new WaitForSeconds(gunData.cooldown);
+        canAttack = true;
     }
 }
