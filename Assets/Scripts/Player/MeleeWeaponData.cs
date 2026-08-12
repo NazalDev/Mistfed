@@ -13,6 +13,5 @@ public class MeleeWeaponData : ScriptableObject
     public float swingRadius = 0.5f;
 
     [Header("Audio")]
-    public AudioClip swingSound;
-    public AudioClip hitSound;
+    public AudioClip[] swingSounds;
 }

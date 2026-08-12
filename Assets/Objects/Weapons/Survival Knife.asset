@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Survival Knife
   m_EditorClassIdentifier: Assembly-CSharp::MeleeWeaponData
   weaponName: Knife
-  cooldown: 0.3
+  cooldown: 0.8
   damage: 1
-  range: 1.5
-  swingRadius: 0.5
-  swingSound: {fileID: 0}
-  hitSound: {fileID: 0}
+  range: 2
+  swingRadius: 1
+  swingSounds:
+  - {fileID: 8300000, guid: 57a2bb371238d644fb505ad4f765c7bb, type: 3}
+  - {fileID: 8300000, guid: e39d9bacdcc24ed45933e168de15b358, type: 3}

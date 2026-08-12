@@ -22,6 +22,10 @@ public class WeaponController : MonoBehaviour
     public GameObject swingEffect;
     public GameObject hitEffect;
 
+    [Header("Weapon Models")]
+    public GameObject gunModel;
+    public GameObject meleeModel;
+
     [Header("Audio")]
     [SerializeField] private AudioSource audioSource;
 
@@ -37,6 +41,8 @@ public class WeaponController : MonoBehaviour
     void Start()
     {
         EquipWeapon(currentWeapon);
+        currentAmmo = gunData.maxAmmo;
+        UpdateAmmoUI();
     }
 
     void Update()
@@ -75,15 +81,28 @@ public class WeaponController : MonoBehaviour
         currentWeapon = type;
         canAttack = true;
         StopAllCoroutines();
+        UpdateWeaponModels(type);
 
         if (type == WeaponType.Gun)
         {
-            currentAmmo = gunData.maxAmmo;
             UpdateAmmoUI();
         }
         else if (ammoText != null)
         {
             ammoText.text = ""; // no ammo display while melee is equipped
+        }
+    }
+
+    void UpdateWeaponModels(WeaponType type)
+    {
+        if (gunModel != null)
+        {
+            gunModel.SetActive(type == WeaponType.Gun);
+        }
+
+        if (meleeModel != null)
+        {
+            meleeModel.SetActive(type == WeaponType.Melee);
         }
     }
 
@@ -144,19 +163,14 @@ public class WeaponController : MonoBehaviour
             Destroy(swing, 0.5f);
         }
 
-        if (audioSource != null && meleeData.swingSound != null)
+        if (audioSource != null && meleeData.swingSounds != null)
         {
-            audioSource.PlayOneShot(meleeData.swingSound);
+            audioSource.PlayOneShot(meleeData.swingSounds[Random.Range(0, meleeData.swingSounds.Length)]);
         }
 
         if (Physics.SphereCast(raycastOrigin.position, meleeData.swingRadius, fwd, out RaycastHit hit, meleeData.range))
         {
             SpawnHitEffect(hit.point);
-
-            if (audioSource != null && meleeData.hitSound != null)
-            {
-                audioSource.PlayOneShot(meleeData.hitSound);
-            }
 
             DamageIfEnemy(hit.collider, meleeData.damage);
         }
@@ -221,4 +235,5 @@ public class WeaponController : MonoBehaviour
         yield return new WaitForSeconds(gunData.cooldown);
         canAttack = true;
     }
+
 }

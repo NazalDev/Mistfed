@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: HandGun
   m_EditorClassIdentifier: Assembly-CSharp::GunData
   gunName: Handgun
-  cooldown: 0.5
+  cooldown: 1.5
   damage: 2
   maxAmmo: 10
   rayLength: 10
